@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redactor &mdash; PII/PHI redaction</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>redactor</h1>
+    <p class="tagline">Strip PII / PHI from documents and replace with consistent fakes.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="redact" role="tab">Redact</button>
+    <button class="tab" data-tab="reverse" role="tab">Reverse</button>
+  </nav>
+
+  <main>
+    <section id="tab-redact" class="tab-panel active">
+      <div id="dropzone" class="dropzone">
+        <p class="dz-primary">Drop a file here</p>
+        <p class="dz-secondary">.txt, .md, source, .pdf, .docx, .eml, .msg &middot; up to 10&nbsp;MB</p>
+        <p class="dz-or">or</p>
+        <label class="btn" for="file-input">Choose a file</label>
+        <input id="file-input" type="file" hidden
+               accept=".txt,.md,.markdown,.log,.csv,.json,.yaml,.yml,.html,.py,.js,.ts,.go,.rb,.java,.cs,.cpp,.c,.h,.rs,.kt,.swift,.pdf,.docx,.eml,.msg,message/rfc822,application/vnd.ms-outlook" />
+      </div>
+
+      <details class="paste">
+        <summary>&hellip;or paste text</summary>
+        <textarea id="paste-text" rows="8" placeholder="Paste text to redact"></textarea>
+      </details>
+
+      <details class="options">
+        <summary>Options</summary>
+        <div class="opt-row">
+          <label>Output format
+            <select id="output-format">
+              <option value="original" selected>Same as input</option>
+              <option value="txt">Plain text (.txt)</option>
+              <option value="md">Markdown (.md)</option>
+              <option value="pdf">PDF (.pdf)</option>
+              <option value="docx">Word document (.docx)</option>
+              <option value="html" data-needs-pandoc>HTML (.html)</option>
+              <option value="rtf" data-needs-pandoc>Rich Text (.rtf)</option>
+              <option value="odt" data-needs-pandoc>OpenDocument (.odt)</option>
+              <option value="epub" data-needs-pandoc>EPUB (.epub)</option>
+            </select>
+          </label>
+          <p id="output-format-hint" class="hint">Override to render the redacted output in any of these formats. Some require pandoc on the server.</p>
+        </div>
+        <div class="opt-row">
+          <label>Confidence threshold
+            <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.4" />
+          </label>
+        </div>
+        <div class="opt-row">
+          <label>Restrict to entities
+            <select id="entities" multiple size="8"></select>
+          </label>
+          <p class="hint">Hold &#8984;/Ctrl to multi-select. Leave empty to use all.</p>
+        </div>
+        <div class="opt-row">
+          <label>Reuse an existing mapping (JSON)
+            <input id="load-mapping" type="file" accept="application/json,.json" />
+          </label>
+          <p class="hint">Optional &mdash; ensures the same originals get the same fakes as a previous run.</p>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button id="redact-btn" class="btn primary" disabled>Redact</button>
+        <span id="status" class="status"></span>
+      </div>
+
+      <section id="result" class="result hidden">
+        <div class="result-head">
+          <h2>Redacted output</h2>
+          <div class="result-actions">
+            <a id="download-result" class="btn small" download>Download file</a>
+            <a id="download-mapping" class="btn small" download>Download mapping</a>
+          </div>
+        </div>
+        <p id="result-note" class="note hidden"></p>
+        <pre id="result-text" class="output"></pre>
+        <details class="mapping-preview">
+          <summary>Mapping preview</summary>
+          <pre id="mapping-preview"></pre>
+        </details>
+      </section>
+    </section>
+
+    <section id="tab-reverse" class="tab-panel">
+      <p class="lead">Paste an AI&#39;s reply and the mapping you saved earlier; the originals come back.</p>
+      <div class="opt-row">
+        <label>Mapping (JSON)
+          <input id="reverse-mapping" type="file" accept="application/json,.json" />
+        </label>
+      </div>
+      <div class="opt-row">
+        <label>Text to un-redact
+          <textarea id="reverse-text" rows="10" placeholder="Paste fake-laden text"></textarea>
+        </label>
+      </div>
+      <div class="actions">
+        <button id="reverse-btn" class="btn primary" disabled>Reverse</button>
+        <span id="reverse-status" class="status"></span>
+      </div>
+      <section id="reverse-result" class="result hidden">
+        <h2>Original text</h2>
+        <pre id="reverse-output" class="output"></pre>
+      </section>
+    </section>
+  </main>
+
+  <footer>
+    <p>Mapping files are sensitive. Treat them as carefully as the original document.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
