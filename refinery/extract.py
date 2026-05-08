@@ -1,4 +1,4 @@
-"""Per-format text/markdown extractors used when --output-format is txt or md."""
+"""Per-format text/markdown extractors."""
 
 from __future__ import annotations
 
@@ -24,9 +24,47 @@ def extract_text_passthrough(src: Path) -> str:
 
 
 def extract_pdf(src: Path) -> str:
-    from redactor.formats import extract_pdf_text
+    from refinery.formats import extract_pdf_text
 
     return extract_pdf_text(src)
+
+
+def extract_pdf_markdown(src: Path) -> str:
+    """Extract PDF text with heading guesses based on font size + bold (Markify-style)."""
+    import fitz
+
+    doc = fitz.open(str(src))
+    parts: list[str] = []
+    try:
+        for page_num, page in enumerate(doc, 1):
+            blocks = page.get_text("dict")["blocks"]
+            page_lines: list[str] = []
+            for block in blocks:
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []):
+                    spans = line.get("spans", [])
+                    if not spans:
+                        continue
+                    text = "".join(s["text"] for s in spans).strip()
+                    if not text:
+                        continue
+                    max_size = max(s["size"] for s in spans)
+                    flags = spans[0].get("flags", 0)
+                    bold = bool(flags & 2**4)
+                    if max_size >= 16 or (bold and max_size >= 13):
+                        page_lines.append(f"## {text}")
+                    elif max_size >= 13 or bold:
+                        page_lines.append(f"### {text}")
+                    else:
+                        page_lines.append(text)
+            if page_lines:
+                parts.append(f"<!-- Page {page_num} -->")
+                parts.extend(page_lines)
+                parts.append("")
+    finally:
+        doc.close()
+    return "\n".join(parts)
 
 
 def extract_docx_text(src: Path) -> str:
@@ -81,6 +119,69 @@ def extract_docx_markdown(src: Path) -> str:
                     if p.text.strip():
                         parts.append(p.text)
     return "\n\n".join(parts)
+
+
+def extract_pptx_markdown(src: Path) -> str:
+    """Walk a .pptx into markdown: each slide gets a `## Slide N: title` heading
+    followed by indented bullets that mirror the paragraph levels.
+    """
+    from pptx import Presentation
+
+    prs = Presentation(str(src))
+    lines: list[str] = []
+    for i, slide in enumerate(prs.slides, 1):
+        title_text = ""
+        body_parts: list[str] = []
+
+        shapes = sorted(
+            slide.shapes, key=lambda s: s.top if s.top is not None else 0,
+        )
+
+        for shape in shapes:
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text.strip()
+            if not text:
+                continue
+
+            is_title = (
+                shape.name.lower().startswith("title")
+                or (not title_text and shape == shapes[0])
+            )
+
+            if is_title and not title_text:
+                title_text = text
+            else:
+                for para in shape.text_frame.paragraphs:
+                    para_text = para.text.strip()
+                    if not para_text:
+                        continue
+                    level = para.level or 0
+                    indent = "  " * level
+                    body_parts.append(f"{indent}- {para_text}")
+
+        lines.append(f"## Slide {i}: {title_text}" if title_text else f"## Slide {i}")
+        if body_parts:
+            lines.extend(body_parts)
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def extract_pptx_text(src: Path) -> str:
+    """Plain-text fallback: drop the markdown markers from the markdown extract."""
+    md = extract_pptx_markdown(src)
+    out: list[str] = []
+    for line in md.split("\n"):
+        if line.startswith("## "):
+            out.append(line[3:])
+        elif line.lstrip().startswith("- "):
+            stripped = line.lstrip()
+            indent = line[: len(line) - len(stripped)]
+            out.append(f"{indent}{stripped[2:]}")
+        else:
+            out.append(line)
+    return "\n".join(out)
 
 
 def _email_body(msg: EmailMessage) -> str:
@@ -143,7 +244,7 @@ def extract_eml(src: Path, markdown: bool = False) -> str:
 
 
 def extract_msg(src: Path, markdown: bool = False) -> str:
-    from redactor.email_format import _msg_to_email_message
+    from refinery.email_format import _msg_to_email_message
 
     msg = _msg_to_email_message(src)
     return _email_to_string(msg, markdown)
@@ -152,9 +253,11 @@ def extract_msg(src: Path, markdown: bool = False) -> str:
 def extract_for_output(src: Path, fmt: str, markdown: bool) -> str:
     """Return a plain-text or markdown rendering of `src` based on its format."""
     if fmt == "pdf":
-        return extract_pdf(src)
+        return extract_pdf_markdown(src) if markdown else extract_pdf(src)
     if fmt == "docx":
         return extract_docx_markdown(src) if markdown else extract_docx_text(src)
+    if fmt == "pptx":
+        return extract_pptx_markdown(src) if markdown else extract_pptx_text(src)
     if fmt == "eml":
         return extract_eml(src, markdown=markdown)
     if fmt == "msg":

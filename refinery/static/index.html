@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Refinery — Distill, redact, convert</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Refinery</h1>
+    <p class="subtitle">Drop a document, pick a format, and (optionally) strip the PII.</p>
+  </header>
+
+  <main class="container">
+    <section id="drop-zone" class="dropzone">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+      </svg>
+      <p class="dz-primary">Drop your file here</p>
+      <p class="dz-secondary">PDF · DOCX · PPTX · EML · MSG · TXT · MD &nbsp;(up to 50&nbsp;MB)</p>
+      <label class="pill-btn" for="file-input">Choose file</label>
+      <input type="file" id="file-input" hidden
+             accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.markdown,.log,.csv,.json,.yaml,.yml,.html,.eml,.msg" />
+    </section>
+
+    <details class="paste">
+      <summary>&hellip; or paste text</summary>
+      <textarea id="paste-text" rows="6" placeholder="Paste text to distill"></textarea>
+    </details>
+
+    <section class="controls">
+      <div class="control-row">
+        <label class="control-label" for="output-format">Output format</label>
+        <select id="output-format">
+          <option value="original" selected>Same as input</option>
+          <option value="md">Markdown (.md)</option>
+          <option value="txt">Plain text (.txt)</option>
+          <option value="pdf">PDF (.pdf)</option>
+          <option value="docx">Word (.docx)</option>
+          <option value="html" data-needs-pandoc>HTML (.html)</option>
+          <option value="rtf" data-needs-pandoc>Rich Text (.rtf)</option>
+          <option value="odt" data-needs-pandoc>OpenDocument (.odt)</option>
+          <option value="epub" data-needs-pandoc>EPUB (.epub)</option>
+        </select>
+      </div>
+      <p id="format-hint" class="hint">Use "Same as input" to keep the original file type when possible.</p>
+
+      <div class="control-row toggle-row">
+        <div class="toggle-text">
+          <label class="control-label" for="redact-toggle">Redact PII / PHI</label>
+          <p class="hint">Replace names, emails, SSNs and other identifiers with consistent fakes.</p>
+        </div>
+        <label class="switch">
+          <input id="redact-toggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <details id="advanced" class="advanced">
+        <summary>Advanced redaction options</summary>
+        <div class="control-row">
+          <label class="control-label" for="threshold">Confidence threshold</label>
+          <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.4" />
+          <p class="hint">Lower = more catches and more false positives. Default 0.4.</p>
+        </div>
+        <div class="control-row">
+          <label class="control-label" for="entities">Restrict to entities</label>
+          <select id="entities" multiple size="8"></select>
+          <p class="hint">Hold &#8984;/Ctrl to multi-select. Leave empty to detect all.</p>
+        </div>
+        <div class="control-row">
+          <label class="control-label" for="load-mapping">Reuse a mapping (JSON)</label>
+          <input id="load-mapping" type="file" accept="application/json,.json" />
+          <p class="hint">Optional. Keeps the same originals mapped to the same fakes as a previous run.</p>
+        </div>
+      </details>
+    </section>
+
+    <div class="actions">
+      <button id="run-btn" class="btn primary" disabled>Refine</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <section id="result" class="result hidden">
+      <div class="result-head">
+        <h2>Result</h2>
+        <div class="result-actions">
+          <button class="btn small" id="copy-btn" type="button">Copy</button>
+          <a id="download-result" class="btn small primary" download>Download</a>
+          <a id="download-mapping" class="btn small hidden" download>Download mapping</a>
+        </div>
+      </div>
+      <p id="result-note" class="note hidden"></p>
+      <pre id="result-text" class="output"></pre>
+      <details id="mapping-block" class="mapping-block hidden">
+        <summary>Mapping (original → fake)</summary>
+        <pre id="mapping-preview"></pre>
+      </details>
+    </section>
+  </main>
+
+  <div class="copied-toast" id="toast">Copied!</div>
+
+  <footer>
+    <p>Refinery runs locally. Mapping files are sensitive — treat them as carefully as the originals.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -11,17 +11,13 @@ from faker import Faker
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-from redactor.recognizers import custom_recognizers
+from refinery.recognizers import custom_recognizers
 
 log = logging.getLogger(__name__)
 
-# Presidio's URL recognizer pulls in tldextract, which logs noisy errors when
-# it can't reach the public suffix list (e.g. offline). The fallback snapshot
-# still works fine — silence the warning so CLI output stays clean.
 logging.getLogger("tldextract").setLevel(logging.ERROR)
 
 DEFAULT_ENTITIES = [
-    # PII
     "PERSON",
     "EMAIL_ADDRESS",
     "PHONE_NUMBER",
@@ -33,13 +29,11 @@ DEFAULT_ENTITIES = [
     "DATE_TIME",
     "NRP",
     "CRYPTO",
-    # US identifiers
     "US_SSN",
     "US_DRIVER_LICENSE",
     "US_PASSPORT",
     "US_ITIN",
     "US_BANK_NUMBER",
-    # PHI / health
     "MEDICAL_LICENSE",
     "MEDICAL_RECORD_NUMBER",
     "HEALTH_PLAN_NUMBER",
@@ -50,7 +44,6 @@ DEFAULT_ENTITIES = [
 class RedactionResult:
     text: str
     mapping: dict[str, dict[str, str]] = field(default_factory=dict)
-    """{entity_type: {original: fake}}"""
 
     def merge_mapping_into(self, target: dict[str, dict[str, str]]) -> None:
         for entity, pairs in self.mapping.items():
@@ -141,7 +134,6 @@ class Redactor:
             entities=self.entities,
             score_threshold=self.score_threshold,
         )
-        # Sort by start, then by end descending to handle overlaps deterministically.
         results = sorted(results, key=lambda r: (r.start, -r.end))
 
         out_parts: list[str] = []
@@ -151,7 +143,6 @@ class Redactor:
 
         for r in results:
             if r.start < last_end:
-                # Overlapping match — skip, the earlier (longer or equal) one wins.
                 continue
             out_parts.append(text[cursor:r.start])
             original = text[r.start:r.end]
@@ -164,11 +155,6 @@ class Redactor:
         out_parts.append(text[cursor:])
         redacted = "".join(out_parts)
 
-        # Consistency pass: replace any originals already in the mapping that
-        # NER missed in this chunk (e.g. names inside HTML markup, or names
-        # that appear in a second document after we've already learned them).
-        # Longest first to avoid partial overlaps. We skip pairs where the
-        # original is a substring of its own fake to avoid runaway expansion.
         replacements: list[tuple[str, str]] = []
         for entity_pairs in self.mapping.values():
             for original, fake in entity_pairs.items():
@@ -178,7 +164,6 @@ class Redactor:
         for original, fake in replacements:
             if original in redacted:
                 redacted = redacted.replace(original, fake)
-                # Reflect the replacement in this run's reported mapping too.
                 etype = self._entity_type_for(original)
                 run_mapping.setdefault(etype, {})[original] = fake
 

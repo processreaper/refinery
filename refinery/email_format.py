@@ -1,10 +1,4 @@
-"""Adapters for email formats: .eml (RFC 822) and Outlook .msg.
-
-Both formats are redacted by walking the parsed email and rewriting
-specific headers plus every text/* part. Attachment bytes are preserved
-unchanged. .msg input is converted to a redacted .eml on the way out
-because Python can't write the OLE-based .msg format.
-"""
+"""Adapters for email formats: .eml (RFC 822) and Outlook .msg."""
 
 from __future__ import annotations
 
@@ -16,9 +10,6 @@ from typing import Callable
 
 Redact = Callable[[str], str]
 
-# Headers worth scanning for PII. Skipping structural / routing headers
-# (Message-ID, Received, Content-Type, MIME-Version, References, …) keeps
-# the message valid and routable after redaction.
 REDACTABLE_HEADERS = {
     "from",
     "to",
@@ -47,8 +38,6 @@ def _redact_headers(msg: EmailMessage, redact: Redact) -> None:
             if new != str(values[0]):
                 msg.replace_header(name, new)
         else:
-            # Multi-valued: del + re-add. Ordering of repeats isn't preserved
-            # but is rarely meaningful for the headers we redact.
             new_values = [redact(str(v)) for v in values]
             del msg[name]
             for v in new_values:
@@ -75,7 +64,6 @@ def _redact_text_parts(msg: EmailMessage, redact: Redact) -> None:
 
 
 def redact_email_message(msg: EmailMessage, redact: Redact) -> None:
-    """Redact a parsed email in place: select headers + every text/* part."""
     _redact_headers(msg, redact)
     _redact_text_parts(msg, redact)
 
@@ -121,13 +109,6 @@ def _msg_to_email_message(path: Path) -> EmailMessage:
 
 
 def redact_msg_file(src: Path, dest: Path, redact: Redact) -> None:
-    """Convert a .msg to a redacted .eml.
-
-    Outlook's .msg is an OLE compound file; Python can't write it. We
-    extract the headers + body and emit a standard RFC 822 message, which
-    is what most downstream tools expect anyway. Caller should give `dest`
-    an `.eml` extension.
-    """
     em = _msg_to_email_message(src)
     redact_email_message(em, redact)
     dest.write_bytes(bytes(em))

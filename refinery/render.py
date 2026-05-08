@@ -1,11 +1,4 @@
-"""Render redacted markdown text to PDF or DOCX.
-
-Both renderers consume the line-based markdown produced by extract.py:
-ATX headings (`# … ######`), bullets (`- `), inline `**bold**` / `*italic*`,
-and blank lines as paragraph separators. Anything else is treated as a
-plain paragraph. This is intentionally minimal — it covers what our
-extractors actually emit and keeps the dep surface small.
-"""
+"""Render markdown text to PDF or DOCX (built-in fallbacks)."""
 
 from __future__ import annotations
 
@@ -17,8 +10,6 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _BULLET_RE = re.compile(r"^[-*]\s+(.+)$")
 _BOLD_RE = re.compile(r"\*\*([^*]+)\*\*")
 _ITALIC_RE = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
-# Strip C0 control chars except \t and \n; PDF extractors sometimes emit \x00,
-# form feeds, etc. that reportlab's mini-XML parser refuses to render.
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
@@ -27,7 +18,6 @@ def _sanitize(text: str) -> str:
 
 
 def _markdown_to_reportlab_html(text: str) -> str:
-    """Escape XML, then re-introduce <b>/<i> for **bold** / *italic*."""
     safe = _xml_escape(_sanitize(text))
     safe = _BOLD_RE.sub(r"<b>\1</b>", safe)
     safe = _ITALIC_RE.sub(r"<i>\1</i>", safe)
@@ -72,13 +62,12 @@ def render_markdown_to_pdf(markdown_text: str, dest: Path) -> None:
         rightMargin=0.75 * inch,
         topMargin=0.75 * inch,
         bottomMargin=0.75 * inch,
-        title="Redacted document",
+        title="Refinery document",
     )
     doc.build(flowables)
 
 
 def _add_emphasis_runs(paragraph, text: str) -> None:
-    """Walk **bold** / *italic* spans, adding runs with the right formatting."""
     pattern = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*)")
     pos = 0
     for m in pattern.finditer(text):

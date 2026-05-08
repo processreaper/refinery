@@ -1,4 +1,4 @@
-from redactor.cli import main
+from refinery.cli import main
 
 if __name__ == "__main__":
     main()
